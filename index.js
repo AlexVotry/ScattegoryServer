@@ -5,7 +5,7 @@ const app = express();
 const { reactUrl } = require('./secrets');
 const server = require('http').createServer(app);
 
-const clientURL = process.env.REACT_URL || 'http://localhost:8080';
+const clientURL = process.env.REACT_URL || reactUrl;
 const io = require('socket.io')(server, {
   cors: {
     origin: clientURL
@@ -14,7 +14,7 @@ const io = require('socket.io')(server, {
 
 const PORT = process.env.PORT || 3000;
 
-  server.listen(PORT, () => console.log(`Master listening on ${PORT}...`))
+  server.listen(PORT, () => console.log(`Server listening on ${PORT}... clientURL: ${clientURL}`))
   io.on('connection', socket => {
     socketMain(io, socket);
   });

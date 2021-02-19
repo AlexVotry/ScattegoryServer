@@ -49,7 +49,7 @@ function socketMain(io, socket) {
   });
 
   socket.on('createTeams', async data => {
-    teams = await createMockTeams(players, teamGroup);
+    teams = await createTeams(players, teamGroup);
     totalPlayers = count = players.length;
     assignTeams(teams);
     io.to(room).emit('newTeams', teams);
