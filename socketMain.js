@@ -5,7 +5,7 @@ const {handleGame, stopTimer, resetGame } = require('./services/handleGame');
 const { handleAnswers, getFinalAnswers, compareTeamAnswers, updateScores, resetScores} = require('./services/handleAnswers');
 const {createMockTeams, createTeams, getTeams } = require('./services/createTeams');
 const {keysIn , isEqual} = require('lodash');
-const uri = mongoUrl;
+const uri = process.env.MONGO_URL || mongoUrl;
 
 mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false });
 
