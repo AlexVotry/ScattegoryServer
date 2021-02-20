@@ -49,7 +49,7 @@ function socketMain(io, socket) {
   });
 
   socket.on('createTeams', async data => {
-    teams = await createMockTeams(players, teamGroup);
+    teams = await createTeams(players, teamGroup);
     totalPlayers = count = players.length;
     assignTeams(teams);
     io.to(room).emit('newTeams', teams);
@@ -176,8 +176,8 @@ console.log('id:', id);
         throw err;
       }
       else {
-        if (players.length) {
-          const quitter = find(players, ['id', id]);
+        const quitter = find(players, ['id', id]);
+        if (players.length && quitter) {
           console.log(`${quitter.name} quit`)
           remove(allPlayers, player => player === quitter.name);
           remove(players, player => player.name === quitter.name);
