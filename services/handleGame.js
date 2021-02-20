@@ -25,6 +25,7 @@ function startGame(io, room, timer) {
       io.to(room).emit('Clock', totalTime);
     } else {
       middleOfGame = false;
+      clearInterval(ticker);
       io.to(room).emit('gameState', 'ready');
     }
   }, 1000);

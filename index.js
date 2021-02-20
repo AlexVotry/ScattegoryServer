@@ -14,8 +14,10 @@ const io = require('socket.io')(server, {
 
 const PORT = process.env.PORT || 3000;
 
-  server.listen(PORT, () => console.log(`Server listening on ${PORT}... clientURL: ${clientURL}`))
-  io.on('connection', socket => {
-    socketMain(io, socket);
-  });
+server.listen(PORT, () => console.log(`Server listening on ${PORT}... clientURL: ${clientURL}`));
+
+io.on('connection', socket => {
+  socketMain(io, socket);
+});
+
 

@@ -4,7 +4,7 @@ const { mongoUrl } = require('./secrets');
 const {handleGame, stopTimer, resetGame } = require('./services/handleGame');
 const { handleAnswers, getFinalAnswers, compareTeamAnswers, updateScores, resetScores} = require('./services/handleAnswers');
 const {createMockTeams, createTeams, getTeams } = require('./services/createTeams');
-const {keysIn , isEqual} = require('lodash');
+const {keysIn , remove, find, isEmpty} = require('lodash');
 const uri = process.env.MONGO_URL || mongoUrl;
 
 mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false });
@@ -14,12 +14,11 @@ let teams = {};
 const players = [];
 const allPlayers = [];
 let totalPlayers;
-let myTeam;
 let numOfCategories = 12;
 let teamNames;
 let count = totalPlayers;
 let teamGroup;
-let timer = 10;
+let timer = 180;
 
 function socketMain(io, socket) {
   let room = '';
@@ -39,6 +38,7 @@ function socketMain(io, socket) {
 
   socket.on('joinTeam', async formInfo => {
     const {name, group} = formInfo;
+    formInfo.id = socket.id;
     teamGroup = group;
     socket.join(group);
     room = group;
@@ -49,7 +49,7 @@ function socketMain(io, socket) {
   });
 
   socket.on('createTeams', async data => {
-    teams = await createTeams(players, teamGroup);
+    teams = await createMockTeams(players, teamGroup);
     totalPlayers = count = players.length;
     assignTeams(teams);
     io.to(room).emit('newTeams', teams);
@@ -60,33 +60,25 @@ function socketMain(io, socket) {
     io.to(room).emit('gameState', gState);
     handleGame(io, room, timer, numOfCategories, gameState);
 
-    if (gameState === 'running') {
-      // at start of game, add 0 to end of team (initial score)
-      teamNames.forEach(name => {
-        teams[name].splice(-1, 1, 0);
-      });
-    }
     if (gameState === 'startOver') {
       resetScores(teamGroup);
       io.to(room).emit('startOver', numOfCategories);
     }
   });
 
-  socket.on('pushPause', pause => {
+  socket.on('pushPause', () => {
     stopTimer();
   });
 
   // reset timer and new categories and letter
-  socket.on('reset', reset => {
+  socket.on('reset', () => {
     resetGame(timer);
     handleGame(io, room, timer, numOfCategories, 'running');
   })
 
   // during active play join (team); between play join (room);
   socket.on('myTeam', team => {
-    console.log('team:', team)
     socket.join(team);
-    myTeam = team;
   });
 
   // every guess goes to the teammates to see.
@@ -106,14 +98,14 @@ function socketMain(io, socket) {
   
   // times up! everyone submits answer. 
   socket.on('FinalAnswer', async finalAnswers => {  
+    // console.log(' teams:', teams);
     await handleAnswers(finalAnswers, teamGroup);
     count--;
-    if (!count) {
+    if (count == 0) {
       // determine best answer for each team
       const teamAnswers = await getFinalAnswers(teamGroup);
       // compare team's answer to each other and cross out duplicates.
       const finalAnswers = await compareTeamAnswers(teamAnswers, numOfCategories)
-
       io.to(room).emit('AllSubmissions', finalAnswers);
       count = totalPlayers;
     }
@@ -141,14 +133,24 @@ function socketMain(io, socket) {
     timer = gameChoices.timer * 60;
   });
 
+  socket.on('disconnect', async () => {
+    if (socket.id) {
+      await removePlayer(socket.id, io);
+    }
+  })
+
   function assignTeams(teams) {
     totalTeams = Object.keys(teams).length;
     teamNames = keysIn(teams);
+    // at start of game, add 0 to end of team (initial score)
+    teamNames.forEach(team => {
+      teams[team].push(0);
+    })
   }
 }
 
 const addUserToGroup = async user => {
-  await db.User.findOneAndUpdate(
+  await db.User.findOneAndUpdate (
     { name: user.name, group: user.group },
     user, 
     { upsert: true }, 
@@ -161,6 +163,45 @@ const addUserToGroup = async user => {
     })
 
     return user;
+}
+
+const removePlayer = async (id , io)=> {
+console.log('id:', id);
+
+  await db.User.findOneAndDelete (
+    { id },
+    (err, doc) => {
+      if (err) {
+        console.log('failed quit:', err, doc)
+        throw err;
+      }
+      else {
+        if (players.length) {
+          const quitter = find(players, ['id', id]);
+          console.log(`${quitter.name} quit`)
+          remove(allPlayers, player => player === quitter.name);
+          remove(players, player => player.name === quitter.name);
+          remove(teams[quitter.team], player => player.name === quitter.name);
+          totalPlayers = allPlayers.length;
+          count = totalPlayers;
+          io.to(teamGroup).emit('AllUsers', allPlayers);
+          db.Group.findOneAndUpdate(
+            { name: quitter.group },
+            { teams },
+            (err, doc) => {
+              if (err) throw err;
+              else {
+                console.log(`${quitter.name} just left the group...`);
+                if(!isEmpty(teams)) {
+                  io.to(quitter.group).emit('newTeams', teams);
+                }
+              }
+            }
+          )
+        }
+      }
+    })
+  
 }
 
 module.exports = socketMain;
