@@ -39,7 +39,8 @@ async function createTeams(players, group) {
 
 async function createMockTeams(players, group) {
   await clearTeams(group);
-  let teams = mockTeams;
+  let teams = {};
+  teams = JSON.parse(JSON.stringify(mockTeams)); // get shallow copy of object
   const unique = uniqBy(players, 'name');
   
   // load into same team to test team websocket.
@@ -61,7 +62,7 @@ async function createMockTeams(players, group) {
         teams.Green.push(...eachUser);
       }
       await db.User.findOneAndUpdate({ name: curUser.name },
-        { team: curUser.team }, (err, doc) => {
+        { team: curUser.team, group }, (err, doc) => {
           if (err) throw err;
           else {
             eachUser = [];

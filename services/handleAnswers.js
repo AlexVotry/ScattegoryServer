@@ -6,14 +6,15 @@ mongoose.connect(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true, us
 
 const db = require('../models');
 
-async function handleAnswers (answer, group) {
+async function handleAnswers (answer) {
   const team = {
     name: answer.team,
-    answers: new Map(JSON.parse(answer.answers))
+    answers: new Map(JSON.parse(answer.answers)),
+    group: answer.group
   }
   team.answers.delete(42); // built in a dummy answer to ensure all participants send and answer, (removing here)
 
-  const finalAnswers = await addTeam(team, group);
+  const finalAnswers = await addTeam(team, answer.group);
   return finalAnswers;
 }
 
