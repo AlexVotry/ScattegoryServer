@@ -90,7 +90,6 @@ function socketMain(io, socket) {
   // every guess goes to the teammates to see.
   socket.on('newGuess', newGuesses => {
     const { guesses, team } = newGuesses;
-    console.log(newGuesses)
     io.to(team).emit('updateAnswers', guesses);
   });
   
@@ -101,7 +100,6 @@ function socketMain(io, socket) {
   
   // times up! everyone submits answer. 
   socket.on('FinalAnswer', async finalAnswers => {  
-    console.log('finalAnser:', finalAnswers);
     const {group } = finalAnswers;
     await handleAnswers(finalAnswers);
     count[group]--;
