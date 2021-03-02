@@ -99,6 +99,17 @@ const getTeams = group => {
   })
 }
 
+// if they refresh we use the localstorage and put them back on their old team.
+function reJoinTeam(user) {
+  db.Group.findOneAndUpdate(
+    {name: user.group, teams: user.team }, 
+    { teams: {$push: { [user.team]: user }}},
+    (err, doc) => {
+      if (err) throw err;
+    }
+  )
+}
+
 async function clearTeams(group) {
   try {
     await db.Team.deleteMany({ group }).then(() => console.log('teams deleted'));
@@ -113,4 +124,4 @@ async function clearTeams(group) {
   ).then(() => console.log('teams removed from group'));
 }
 
-module.exports = { createMockTeams, createTeams, getTeams };
+module.exports = { createMockTeams, createTeams, getTeams, reJoinTeam };

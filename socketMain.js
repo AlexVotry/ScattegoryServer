@@ -3,7 +3,7 @@ const { mongoUrl } = require('./secrets');
 
 const {handleGame, stopTimer, resetGame } = require('./services/handleGame');
 const { handleAnswers, getFinalAnswers, compareTeamAnswers, updateScores, resetScores} = require('./services/handleAnswers');
-const {createMockTeams, createTeams, getTeams } = require('./services/createTeams');
+const { createMockTeams, createTeams, getTeams, reJoinTeam } = require('./services/createTeams');
 const {keysIn , remove, find, isEmpty} = require('lodash');
 const uri = process.env.MONGO_URL || mongoUrl;
 
@@ -20,16 +20,25 @@ let timer = {};
 let room = {};
 
 function socketMain(io, socket) {
+
   socket.on('initJoin', async localState => {
+    console.log('localState:', localState);
     const {name, group, team } = localState;
     socket.join(group);
     room[socket.id] = group;
-    socket.join(team);
-    const currentTeams = await getTeams(group);
-    teams[group] = currentTeams;
+    const currentUser = await addUserToGroup(localState);
+    if (team) {
+      await reJoinTeam(localState);
+      const currentTeams = await getTeams(group);
+      socket.join(team);
+      assignTeams(teams, group);
+      teams[group] = currentTeams;
+      io.to(socket.id).emit('newTeams', teams[group]);
+    } else {
+      io.to(group).emit('AllUsers', allPlayers[group]);
+    }
     console.log(`${name} re-joined ${group} `);
-    assignTeams(teams);
-    socket.emit('initUser', { currentUser: localState, teams });
+    // socket.emit('initUser', { currentUser: localState, teams: teams[group] });
   });
 
   socket.on('joinTeam', async formInfo => {
@@ -47,8 +56,8 @@ function socketMain(io, socket) {
     teams[group] = await createTeams(players[group], group);
     totalPlayers[group] = count[group] = players[group].length;
     assignTeams(teams, group);
-    timer[group] = 14;
-    numOfCategories[group] = 6;
+    timer[group] = 180;
+    numOfCategories[group] = 12;
     io.to(group).emit('newTeams', teams[group]);
   });
 
@@ -81,7 +90,7 @@ function socketMain(io, socket) {
   // every guess goes to the teammates to see.
   socket.on('newGuess', newGuesses => {
     const { guesses, team } = newGuesses;
-
+    console.log(newGuesses)
     io.to(team).emit('updateAnswers', guesses);
   });
   
@@ -92,6 +101,7 @@ function socketMain(io, socket) {
   
   // times up! everyone submits answer. 
   socket.on('FinalAnswer', async finalAnswers => {  
+    console.log('finalAnser:', finalAnswers);
     const {group } = finalAnswers;
     await handleAnswers(finalAnswers);
     count[group]--;
@@ -179,38 +189,35 @@ const removePlayer = async (id , io)=> {
         throw err;
       }
       else {
-        console.log('group:', group);
-        // if (!isEmpty(players[group])) {
-          const quitter = find(players[group], ['id', id]);
-          if (quitter) {
-            if (players[group].length) {
-              remove(allPlayers[group], player => player === quitter.name);
-              remove(players[group], player => player.name === quitter.name);
-              totalPlayers[group] = allPlayers[group].length;
-              count[group] = totalPlayers[group];
-              io.to(group).emit('AllUsers', allPlayers[group]);
-              
-              if (!isEmpty(teams)) {
-                team = teams[group];
-                remove(team[quitter.team], player => player.name === quitter.name);
-              } 
-              db.Group.findOneAndUpdate(
-                { name: group },
-                { teams: team },
-                (err, doc) => {
-                  if (err) throw err;
-                else {
-                  console.log(`${quitter.name} just left the group...`);
-                  if(!isEmpty(teams[group])) {
-                    io.to(group).emit('newTeams', teams[group]);
-                  }
+        const quitter = find(players[group], ['id', id]);
+        if (quitter) {
+          if (players[group].length) {
+            remove(allPlayers[group], player => player === quitter.name);
+            remove(players[group], player => player.name === quitter.name);
+            totalPlayers[group] = allPlayers[group].length;
+            count[group] = totalPlayers[group];
+            io.to(group).emit('AllUsers', allPlayers[group]);
+            
+            if (!isEmpty(teams)) {
+              team = teams[group];
+              remove(team[quitter.team], player => player.name === quitter.name);
+            } 
+            db.Group.findOneAndUpdate(
+              { name: group },
+              { teams: team },
+              (err, doc) => {
+                if (err) throw err;
+              else {
+                console.log(`${quitter.name} just left the group...`);
+                if(!isEmpty(teams[group])) {
+                  io.to(group).emit('newTeams', teams[group]);
                 }
               }
-              )
-              console.log(`${quitter.name} quit`)
             }
+            )
+            console.log(`${quitter.name} quit`)
           }
-        // }
+        }
       }
     })
   
