@@ -78,7 +78,7 @@ function socketMain(io, socket) {
   });
 
   socket.on('createTeams', async group => {
-    teams[group] = await createMockTeams(players[group], group);
+    teams[group] = await createTeams(players[group], group);
     totalPlayers[group] = count[group] = players[group].length;
     assignTeams(teams[group], group);
     timer[group] = 180;

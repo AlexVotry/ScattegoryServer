@@ -49,17 +49,17 @@ async function createMockTeams(players, group) {
     if (eachUser.length) {
       const curUser = eachUser[0];
       
-      if (unique.length > 1) {
-        eachUser[0].team = 'Purple';
-        if (!includes(teams.Purple, curUser.name)) {
-          teams.Purple.push(...eachUser);
+      if (unique.length > 3) {
+        eachUser[0].team = 'Gold';
+        if (!includes(teams.Gold, curUser.name)) {
+          teams.Gold.push(...eachUser);
         }
       } else if (eachUser[0].name) {
-        eachUser[0].team = 'Green';
-        if (includes(teams.Green, curUser.name)) {
-          remove(teams.Green, player => player.name === curUser.name)
+        eachUser[0].team = 'Purple';
+        if (includes(teams.Purple, curUser.name)) {
+          remove(teams.Purple, player => player.name === curUser.name)
         }
-        teams.Green.push(...eachUser);
+        teams.Purple.push(...eachUser);
       }
       await db.User.findOneAndUpdate({ name: curUser.name },
         { team: curUser.team, group }, (err, doc) => {
