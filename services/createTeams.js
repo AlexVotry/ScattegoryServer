@@ -100,10 +100,10 @@ const getTeams = group => {
 }
 
 // if they refresh we use the localstorage and put them back on their old team.
-function reJoinTeam(user) {
+function reJoinTeam(group, teams) {
   db.Group.findOneAndUpdate(
-    {name: user.group, teams: user.team }, 
-    { teams: {$push: { [user.team]: user }}},
+    {name: group}, 
+    {teams},
     (err, doc) => {
       if (err) throw err;
     }

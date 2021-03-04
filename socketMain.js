@@ -18,27 +18,35 @@ let numOfCategories = {};
 let count = {};
 let timer = {};
 let room = {};
+const Sarah = {
+  name: 'Sarah',
+  email: '',
+  group: 'family',
+  admin: false,
+  team: 'Green'
+}
 
 function socketMain(io, socket) {
 
   socket.on('initJoin', async localState => {
-    console.log('localState:', localState);
+    // const localState = Sarah;
+    localState.id = socket.id;
     const {name, group, team } = localState;
     socket.join(group);
     room[socket.id] = group;
     const currentUser = await addUserToGroup(localState);
+
     if (team) {
-      await reJoinTeam(localState);
       const currentTeams = await getTeams(group);
+      currentTeams[team].unshift(localState);
+      await reJoinTeam(group, currentTeams);
       socket.join(team);
-      assignTeams(teams, group);
       teams[group] = currentTeams;
-      io.to(socket.id).emit('newTeams', teams[group]);
-    } else {
-      io.to(group).emit('AllUsers', allPlayers[group]);
+      io.to(group).emit('newTeams', teams[group]);
     }
+    await socket.emit('currentUser', currentUser)
+    io.to(group).emit('AllUsers', allPlayers[group]);
     console.log(`${name} re-joined ${group} `);
-    // socket.emit('initUser', { currentUser: localState, teams: teams[group] });
   });
 
   socket.on('joinTeam', async formInfo => {
@@ -46,16 +54,33 @@ function socketMain(io, socket) {
     formInfo.id = socket.id;
     room[socket.id] = group;
     socket.join(group);
-    console.log(`${name} joined ${group}`);
+    const currentTeams = teams[group];
+    console.log(`${name} joined ${group}`, currentTeams);
+
+    if (!isEmpty(currentTeams)) {
+      let chosenTeam = 'Blue';
+      let min = 3;
+      for (const team in currentTeams) {
+        if (currentTeams[team].length < min) {
+          chosenTeam = team;
+          min = currentTeams[team].length;
+        }
+      }
+      formInfo.team = chosenTeam;
+      currentTeams[chosenTeam].unshift(formInfo);
+      reJoinTeam(group, currentTeams);
+      io.to(group).emit('newTeams', teams[group]);
+    }
+    
     const currentUser = await addUserToGroup(formInfo);
     socket.emit('currentUser', currentUser)
     io.to(group).emit('AllUsers', allPlayers[group]);
   });
 
   socket.on('createTeams', async group => {
-    teams[group] = await createTeams(players[group], group);
+    teams[group] = await createMockTeams(players[group], group);
     totalPlayers[group] = count[group] = players[group].length;
-    assignTeams(teams, group);
+    assignTeams(teams[group], group);
     timer[group] = 180;
     numOfCategories[group] = 12;
     io.to(group).emit('newTeams', teams[group]);
@@ -100,7 +125,7 @@ function socketMain(io, socket) {
   
   // times up! everyone submits answer. 
   socket.on('FinalAnswer', async finalAnswers => {  
-    const {group } = finalAnswers;
+    const { group } = finalAnswers;
     await handleAnswers(finalAnswers);
     count[group]--;
     if (count[group] == 0) {
@@ -143,12 +168,12 @@ function socketMain(io, socket) {
     }
   })
 
-  function assignTeams(teams, group) {
-    totalTeams = Object.keys(teams[group]).length;
-    const teamNames = keysIn(teams[group]);
+  function assignTeams(currentTeams, group) {
+    totalTeams = Object.keys(currentTeams).length;
+    const teamNames = keysIn(currentTeams);
     // at start of game, add 0 to end of team (initial score)
     teamNames.forEach(team => {
-      teams[group][team].push(0);
+      currentTeams[team].push(0);
     })
   }
 }
@@ -198,7 +223,9 @@ const removePlayer = async (id , io)=> {
             
             if (!isEmpty(teams)) {
               team = teams[group];
-              remove(team[quitter.team], player => player.name === quitter.name);
+              if (team[quitter.team].length > 1) {
+                remove(team[quitter.team], player => player.name === quitter.name);
+              }
             } 
             db.Group.findOneAndUpdate(
               { name: group },
